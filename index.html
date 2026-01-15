@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tenta Rotator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, sans-serif;
+            font-size: 16px;
+            line-height: 1.5;
+            background: #f5f5f5;
+            color: #222;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+        }
+
+        .container {
+            background: #fff;
+            border: 1px solid #e0e0e0;
+            padding: 40px;
+            max-width: 480px;
+            width: 100%;
+        }
+
+        .header {
+            border-left: 4px solid #ffd600;
+            padding-left: 16px;
+            margin-bottom: 32px;
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #111;
+        }
+
+        .subtitle {
+            font-size: 0.875rem;
+            color: #666;
+            margin-top: 4px;
+        }
+
+        .drop-zone {
+            border: 2px dashed #ccc;
+            padding: 48px 24px;
+            cursor: pointer;
+            transition: border-color 0.15s ease, background 0.15s ease;
+            text-align: center;
+        }
+
+        .drop-zone:hover,
+        .drop-zone.dragover {
+            border-color: #ffd600;
+            background: rgba(255, 214, 0, 0.05);
+        }
+
+        .drop-zone-icon {
+            width: 48px;
+            height: 48px;
+            margin-bottom: 16px;
+            color: #888;
+        }
+
+        .drop-zone-text {
+            font-size: 0.9375rem;
+            color: #444;
+        }
+
+        .drop-zone-hint {
+            font-size: 0.8125rem;
+            color: #888;
+            margin-top: 8px;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .file-info {
+            display: none;
+            background: #fafafa;
+            border: 1px solid #e0e0e0;
+            padding: 16px;
+            margin-top: 16px;
+        }
+
+        .file-info.visible {
+            display: block;
+        }
+
+        .file-name {
+            font-weight: 500;
+            color: #111;
+            word-break: break-all;
+            font-size: 0.9375rem;
+        }
+
+        .file-details {
+            font-size: 0.8125rem;
+            color: #666;
+            margin-top: 4px;
+        }
+
+        .btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            background: #ffd600;
+            color: #111;
+            border: none;
+            padding: 0 24px;
+            min-height: 48px;
+            width: 100%;
+            margin-top: 16px;
+            font-family: inherit;
+            font-size: 0.9375rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.15s ease;
+        }
+
+        .btn:hover:not(:disabled) {
+            background: #e6c200;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .status {
+            margin-top: 16px;
+            font-size: 0.875rem;
+            text-align: center;
+            min-height: 24px;
+        }
+
+        .status.processing {
+            color: #b38f00;
+        }
+
+        .status.success {
+            color: #2e7d32;
+        }
+
+        .status.error {
+            color: #c62828;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Tenta Rotator</h1>
+            <p class="subtitle">Vänder alla sidor utom första rätt</p>
+        </div>
+
+        <div class="drop-zone" id="dropZone">
+            <svg class="drop-zone-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <line x1="12" y1="18" x2="12" y2="12"/>
+                <line x1="9" y1="15" x2="12" y2="12"/>
+                <line x1="15" y1="15" x2="12" y2="12"/>
+            </svg>
+            <div class="drop-zone-text">Släpp PDF här eller klicka för att välja</div>
+            <div class="drop-zone-hint">Allt sker lokalt i din webbläsare</div>
+        </div>
+        <input type="file" id="fileInput" accept=".pdf,application/pdf">
+
+        <div class="file-info" id="fileInfo">
+            <div class="file-name" id="fileName"></div>
+            <div class="file-details" id="fileDetails"></div>
+        </div>
+
+        <button class="btn hidden" id="downloadBtn">Ladda ner resultat</button>
+
+        <div class="status" id="status"></div>
+    </div>
+
+    <script>
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const fileInfo = document.getElementById('fileInfo');
+        const fileName = document.getElementById('fileName');
+        const fileDetails = document.getElementById('fileDetails');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const status = document.getElementById('status');
+
+        let selectedFile = null;
+        let processedPdfBytes = null;
+
+        dropZone.addEventListener('click', () => fileInput.click());
+
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length && files[0].type === 'application/pdf') {
+                handleFile(files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        async function handleFile(file) {
+            selectedFile = file;
+            processedPdfBytes = null;
+
+            fileName.textContent = file.name;
+            fileDetails.textContent = formatFileSize(file.size);
+            fileInfo.classList.add('visible');
+            downloadBtn.classList.add('hidden');
+
+            await processFile();
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        }
+
+        async function processFile() {
+            if (!selectedFile) return;
+
+            downloadBtn.classList.add('hidden');
+            status.textContent = 'Bearbetar...';
+            status.className = 'status processing';
+
+            try {
+                const arrayBuffer = await selectedFile.arrayBuffer();
+                const pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
+                const pages = pdfDoc.getPages();
+
+                if (pages.length < 2) {
+                    status.textContent = 'PDF:en har bara en sida — inget att rotera.';
+                    status.className = 'status';
+                    return;
+                }
+
+                for (let i = 1; i < pages.length; i++) {
+                    const page = pages[i];
+                    const currentRotation = page.getRotation().angle;
+                    page.setRotation(PDFLib.degrees(currentRotation + 180));
+                }
+
+                processedPdfBytes = await pdfDoc.save();
+
+                const count = pages.length - 1;
+                status.textContent = `Klart! Roterade ${count} sida${count > 1 ? 'r' : ''}.`;
+                status.className = 'status success';
+                downloadBtn.classList.remove('hidden');
+
+            } catch (err) {
+                console.error(err);
+                status.textContent = 'Kunde inte bearbeta PDF:en. Den kan vara krypterad eller skadad.';
+                status.className = 'status error';
+            }
+        }
+
+        downloadBtn.addEventListener('click', () => {
+            if (!processedPdfBytes) return;
+
+            const blob = new Blob([processedPdfBytes], { type: 'application/pdf' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+
+            const originalName = selectedFile.name.replace(/\.pdf$/i, '');
+            a.href = url;
+            a.download = `${originalName}_roterad.pdf`;
+            a.click();
+
+            URL.revokeObjectURL(url);
+        });
+    </script>
+</body>
+</html>
